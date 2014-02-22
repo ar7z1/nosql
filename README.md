@@ -3,5 +3,5 @@
 ## Лекции
 1. Введение
  * Основные понятия
- * CAP-теорема ([презентация](/presentations/CAP.pdf))
+ * CAP-теорема ([презентация](https://s3-eu-west-1.amazonaws.com/nosql-course/presentations/CAP.pdf))
 2. Реляционные базы данных
