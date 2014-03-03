@@ -1,0 +1,7 @@
+﻿@model Tweets.Models.HomeViewModel
+
+@{
+    Layout = "~/Views/Shared/Layout.cshtml";
+}
+
+@Html.Partial("Messages", Model.TopMessages, new ViewDataDictionary())

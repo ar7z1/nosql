@@ -1,0 +1,11 @@
+﻿<ul class="nav nav-pills pull-right">
+    @if (!Request.IsAuthenticated)
+    {
+        <li><span class="label">@Html.ActionLink("Войти", "Login", "Auth", new {returnUrl = Url.Action()}, null)</span></li>
+    }
+    else
+    {
+        <li><span class="label label-info">@User.Identity.Name</span></li>
+        <li><span class="label">@Html.ActionLink("Выйти", "Logout", "Auth")</span></li>
+    }
+</ul>

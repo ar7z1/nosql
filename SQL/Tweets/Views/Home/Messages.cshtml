@@ -1,0 +1,25 @@
+﻿@model IEnumerable<Tweets.Models.MessageViewModel>
+
+<div class="table-responsive container">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Пользователь</th>
+                <th>Сообщение</th>
+                <th>Одобрений</th>
+                <th>Дата создания</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                @foreach (var message in Model)
+                {
+                    <td>@Html.DisplayFor(m => message.UserName)</td>
+                    <td>@Html.DisplayFor(m => message.Content)</td>
+                    <td>@Html.DisplayFor(m => message.Likes)</td>
+                    <td>@Html.DisplayFor(m => message.CreateDate)</td>
+                }
+            </tr>
+        </tbody>
+    </table>
+</div>
