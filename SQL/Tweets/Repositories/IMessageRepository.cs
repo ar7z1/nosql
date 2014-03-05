@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Tweets.Models;
 
 namespace Tweets.Repositories
@@ -6,6 +7,9 @@ namespace Tweets.Repositories
     public interface IMessageRepository
     {
         void Save(Message message);
-        IEnumerable<Message> GetMessages(User user);
+        void Like(Guid messageId, User user);
+        void Dislike(Guid messageId, User user);
+        IEnumerable<Message> GetPopularMessages();
+        IEnumerable<UserMessage> GetMessages(User user);
     }
 }

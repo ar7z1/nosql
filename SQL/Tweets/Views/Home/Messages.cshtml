@@ -6,20 +6,46 @@
             <tr>
                 <th>Пользователь</th>
                 <th>Сообщение</th>
-                <th>Одобрений</th>
                 <th>Дата создания</th>
+                <th>Одобрений</th>
+                @if (Request.IsAuthenticated)
+                {
+                    <th></th>
+                }
             </tr>
         </thead>
         <tbody>
-            <tr>
-                @foreach (var message in Model)
-                {
+            @foreach (var message in Model)
+            {
+                <tr>
+
                     <td>@Html.DisplayFor(m => message.UserName)</td>
                     <td>@Html.DisplayFor(m => message.Content)</td>
-                    <td>@Html.DisplayFor(m => message.Likes)</td>
                     <td>@Html.DisplayFor(m => message.CreateDate)</td>
-                }
-            </tr>
+                    <td>@Html.DisplayFor(m => message.Likes)</td>
+                    @if (Request.IsAuthenticated)
+                    {
+                        <td>
+                            @if (!message.Liked)
+                            {
+                                using (Html.BeginForm("Like", "Home", FormMethod.Post))
+                                {
+                                    @Html.Hidden("messageId", message.MessageId)
+                                    <button type="submit" class="btn btn-success btn-large">+1</button>
+                                }
+                            }
+                            else
+                            {
+                                using (Html.BeginForm("Dislike", "Home", FormMethod.Post))
+                                {
+                                    @Html.Hidden("messageId", message.MessageId)
+                                    <button type="submit" class="btn btn-danger btn-small">-1</button>
+                                }
+                            }
+                        </td>
+                    }
+                </tr>
+            }
         </tbody>
     </table>
 </div>

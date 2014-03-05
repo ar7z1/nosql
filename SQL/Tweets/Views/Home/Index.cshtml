@@ -1,7 +1,12 @@
-﻿@model Tweets.Models.HomeViewModel
+﻿@model IEnumerable<Tweets.Models.MessageViewModel>
 
 @{
     Layout = "~/Views/Shared/Layout.cshtml";
 }
 
-@Html.Partial("Messages", Model.TopMessages, new ViewDataDictionary())
+@Html.Partial("Messages")
+
+@if (Request.IsAuthenticated)
+{
+    @Html.Partial("NewMessage")
+}
