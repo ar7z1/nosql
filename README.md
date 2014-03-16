@@ -8,4 +8,4 @@
 
 ## Домашние задания
 1. [SQL](https://s3-eu-west-1.amazonaws.com/nosql-course/hw/SQL.pdf) ([Образ с Windows](https://drive.google.com/folderview?id=0BxzEa1Urn3HPOVBlMTMwME9FZ1k&usp=sharing))
-
+2. [Riak](https://s3-eu-west-1.amazonaws.com/nosql-course/hw/Riak.pdf) ([Образ с Ubuntu](https://s3-eu-west-1.amazonaws.com/nosql-course/hw/Ubuntu+Server.ova))
