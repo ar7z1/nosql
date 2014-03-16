@@ -1,10 +1,12 @@
 ﻿using System;
+using Tweets.Attributes;
 
 namespace Tweets.Models
 {
-    public class User
+    [BucketName("users")]
+    public class UserDocument
     {
-        public string Name { get; set; }
+        public string Id { get; set; }
         public string DisplayName { get; set; }
         public Uri ImageUrl { get; set; }
     }

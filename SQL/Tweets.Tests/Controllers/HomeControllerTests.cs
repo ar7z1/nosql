@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Web.Mvc;
 using NUnit.Framework;
 using Ploeh.AutoFixture;
@@ -20,6 +19,7 @@ namespace Tweets.Tests.Controllers
             userReader = fixture.Freeze<IUserReader>();
             messageMapper = fixture.Freeze<IMapper<Message, MessageViewModel>>();
             userMessageMapper = fixture.Freeze<IMapper<UserMessage, MessageViewModel>>();
+            userViewModelMapper = fixture.Freeze<IMapper<User, UserViewModel>>();
             sut = fixture.Create<HomeController>();
         }
 
@@ -28,6 +28,7 @@ namespace Tweets.Tests.Controllers
         private IUserReader userReader;
         private IMapper<Message, MessageViewModel> messageMapper;
         private IMapper<UserMessage, MessageViewModel> userMessageMapper;
+        private IMapper<User, UserViewModel> userViewModelMapper;
 
         [Test]
         public void Add_NonEmptyMessageOfKnownUser_ShouldSaveMessage()
@@ -112,16 +113,30 @@ namespace Tweets.Tests.Controllers
         }
 
         [Test]
-        public void Index_Always_ShouldSetViewModelFromMapper()
+        public void Index_Always_ShouldSetMessagesViewModelFromMapper()
         {
             userReader.Stub(r => r.User).Return(null);
             messageRepository.Stub(r => r.GetPopularMessages()).Return(new[] {fixture.Create<Message>()});
             var messageViewModel = fixture.Create<MessageViewModel>();
             messageMapper.Stub(m => m.Map(Arg<Message>.Is.Anything)).Return(messageViewModel);
 
-            var actual = ((ViewResult) sut.Index()).Model as IEnumerable<MessageViewModel>;
+            var actual = (HomePageViewModel) ((ViewResult) sut.Index()).Model;
 
-            Assert.That(actual, Is.EqualTo(new[] {messageViewModel}));
+            Assert.That(actual.Messages, Is.EqualTo(new[] {messageViewModel}));
+        }
+
+        [Test]
+        public void Index_Always_ShouldSetUserViewModelFromMapper()
+        {
+            messageRepository.Stub(r => r.GetMessages(Arg<User>.Is.Anything)).Return(fixture.CreateMany<UserMessage>());
+            var user = fixture.Create<User>();
+            userReader.Stub(r => r.User).Return(user);
+            var userViewModel = fixture.Create<UserViewModel>();
+            userViewModelMapper.Stub(m => m.Map(user)).Return(userViewModel);
+
+            var actual = (HomePageViewModel) ((ViewResult) sut.Index()).Model;
+
+            Assert.That(actual.User, Is.EqualTo(userViewModel));
         }
 
         [Test]

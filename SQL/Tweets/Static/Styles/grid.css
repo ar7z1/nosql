@@ -26,3 +26,9 @@ hr {
   margin-top: 40px;
   margin-bottom: 40px;
 }
+
+.avatar {
+  max-height:22px;
+  width:auto;
+  vertical-align:middle;
+}

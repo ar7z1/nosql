@@ -11,7 +11,6 @@ namespace Tweets
         {
             AreaRegistration.RegisterAllAreas();
             RouteConfig.RegisterRoutes(RouteTable.Routes);
-            AuthConfig.RegisterAuth();
 
             var container = new Container();
             container.Configure(r => r.Scan(s =>
@@ -19,6 +18,7 @@ namespace Tweets
                                                 s.TheCallingAssembly();
                                                 s.RegisterConcreteTypesAgainstTheFirstInterface()
                                                  .OnAddedPluginTypes(c => c.LifecycleIs(InstanceScope.Singleton));
+                                                s.LookForRegistries();
                                             }));
             ControllerBuilder.Current.SetControllerFactory(new StructureMapControllersFactory(container));
         }

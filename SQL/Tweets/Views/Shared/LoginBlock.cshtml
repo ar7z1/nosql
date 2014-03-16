@@ -1,11 +1,14 @@
-﻿<ul class="nav nav-pills pull-right">
-    @if (!Request.IsAuthenticated)
+﻿@model Tweets.Models.UserViewModel
+
+<ul class="nav nav-pills pull-right">
+    @if (!Request.IsAuthenticated || Model == null)
     {
         <li><span class="label">@Html.ActionLink("Войти", "Login", "Auth", new {returnUrl = Url.Action()}, null)</span></li>
     }
     else
     {
-        <li><span class="label label-info">@User.Identity.Name</span></li>
+        <li><img class="avatar" src="@Model.ImageUrl"></li>
+        <li><span class="label label-info">@Model.DisplayName</span></li>
         <li><span class="label">@Html.ActionLink("Выйти", "Logout", "Auth")</span></li>
     }
 </ul>

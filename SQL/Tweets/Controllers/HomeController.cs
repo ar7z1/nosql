@@ -13,16 +13,19 @@ namespace Tweets.Controllers
         private readonly IMessageRepository messageRepository;
         private readonly IMapper<UserMessage, MessageViewModel> userMessageMapper;
         private readonly IUserReader userReader;
+        private readonly IMapper<User, UserViewModel> userViewModelMapper;
 
         public HomeController(IMessageRepository messageRepository,
                               IUserReader userReader,
                               IMapper<Message, MessageViewModel> messageMapper,
-                              IMapper<UserMessage, MessageViewModel> userMessageMapper)
+                              IMapper<UserMessage, MessageViewModel> userMessageMapper,
+                              IMapper<User, UserViewModel> userViewModelMapper)
         {
             this.messageRepository = messageRepository;
             this.userReader = userReader;
             this.messageMapper = messageMapper;
             this.userMessageMapper = userMessageMapper;
+            this.userViewModelMapper = userViewModelMapper;
         }
 
         public ActionResult Index()
@@ -31,7 +34,7 @@ namespace Tweets.Controllers
             var model = user == null
                             ? messageRepository.GetPopularMessages().Select(messageMapper.Map)
                             : messageRepository.GetMessages(user).Select(userMessageMapper.Map);
-            return View(model.ToArray());
+            return View(new HomePageViewModel {Messages = model.ToArray(), User = userViewModelMapper.Map(user)});
         }
 
         [Authorize]

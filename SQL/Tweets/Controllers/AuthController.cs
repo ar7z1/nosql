@@ -1,26 +1,44 @@
-﻿using System.Web.Mvc;
+﻿using System;
+using System.Web.Mvc;
 using System.Web.Security;
-using DotNetOpenAuth.AspNet;
-using Microsoft.Web.WebPages.OAuth;
+using Tweets.Models;
+using Tweets.Repositories;
+using TweetSharp;
 
 namespace Tweets.Controllers
 {
     public class AuthController : Controller
     {
-        [AllowAnonymous]
-        public void Login(string returnUrl)
+        private const string ConsumerKey = "lIvRx7BJZ4xdLffZcR1ygw";
+        private const string ConsumerSecret = "zMtfxNahFHfUDiVTsVoKoYvDC89t4DEyP2b6qGZcSg";
+        private readonly IUserRepository userRepository;
+
+        public AuthController(IUserRepository userRepository)
         {
-            OAuthWebSecurity.RequestAuthentication("Twitter", Url.Action("LoginCallback", new {returnUrl}));
+            this.userRepository = userRepository;
         }
 
         [AllowAnonymous]
-        public ActionResult LoginCallback(string returnUrl)
+        public ActionResult Login(string returnUrl)
         {
-            AuthenticationResult result = OAuthWebSecurity.VerifyAuthentication();
-            if (!result.IsSuccessful)
-                return RedirectToAction(Url.Action("Index", "Home"));
+            var service = new TwitterService(ConsumerKey, ConsumerSecret);
+            var requestToken = service.GetRequestToken(Url.Action("LoginCallback", "Auth", new {returnUrl}, Request.Url.Scheme));
+            var uri = service.GetAuthorizationUri(requestToken);
+            return Redirect(uri.ToString());
+        }
 
-            FormsAuthentication.SetAuthCookie(result.UserName, false);
+        [AllowAnonymous]
+        public ActionResult LoginCallback(string returnUrl, string oauth_token, string oauth_verifier)
+        {
+            var requestToken = new OAuthRequestToken {Token = oauth_token};
+            var service = new TwitterService(ConsumerKey, ConsumerSecret);
+            var accessToken = service.GetAccessToken(requestToken, oauth_verifier);
+            service.AuthenticateWith(accessToken.Token, accessToken.TokenSecret);
+            var twitterUser = service.VerifyCredentials(new VerifyCredentialsOptions());
+
+            var user = new User {Name = twitterUser.ScreenName, DisplayName = twitterUser.Name, ImageUrl = new Uri(twitterUser.ProfileImageUrl)};
+            userRepository.Save(user);
+            FormsAuthentication.SetAuthCookie(user.Name, false);
             return Redirect(returnUrl);
         }
 
