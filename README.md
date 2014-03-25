@@ -16,6 +16,6 @@
 2. [Riak](https://s3-eu-west-1.amazonaws.com/nosql-course/hw/Riak.pdf) ([Образ с Ubuntu](https://s3-eu-west-1.amazonaws.com/nosql-course/hw/Ubuntu+Server.ova))
 
 ## Баллы
-| GitHub account | SQL | Riak |
-|----------------|-----|------|
-| Антон Федоров  |  +  |      |
+| Идентификатор                    | SQL | Riak |
+|----------------------------------|:---:|------|
+| Антон **vorkulsky** Федоров      |  +  |      |
