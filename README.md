@@ -10,6 +10,8 @@
  * [Документация по LevelDB](http://leveldb.googlecode.com/svn/trunk/doc/impl.html)
  * [SSTable](http://www.igvita.com/2012/02/06/sstable-and-log-structured-storage-leveldb/)
  * [Фильтр Блума](http://ru.wikipedia.org/wiki/Фильтр_Блума)
+4. Column-oriented хранилища, Cassandra ([презентация](https://s3-eu-west-1.amazonaws.com/nosql-course/presentations/cassandra.pdf))
+5. Document-oriented базы данных, MongoDB ([презентация](https://s3-eu-west-1.amazonaws.com/nosql-course/presentations/MongoDB.pdf))
 
 ## Домашние задания
 1. [SQL](https://s3-eu-west-1.amazonaws.com/nosql-course/hw/SQL.pdf) ([Образ с Windows](https://drive.google.com/folderview?id=0BxzEa1Urn3HPOVBlMTMwME9FZ1k&usp=sharing))
