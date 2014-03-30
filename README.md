@@ -27,4 +27,4 @@
 | Евгений **eugenyshchelkanov** Щелканов|  +  |   +  |
 | Александр **SleipnirFr** Пономарев    |  +  |      |
 | Виталий **iband** Ишкулов             |  +  |      |
-| **ZigGreen**                          |  +  |      |
+| **ZigGreen**                          |  +? |      |
