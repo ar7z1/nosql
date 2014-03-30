@@ -18,9 +18,10 @@
 2. [Riak](https://s3-eu-west-1.amazonaws.com/nosql-course/hw/Riak.pdf) ([Образ с Ubuntu](https://s3-eu-west-1.amazonaws.com/nosql-course/hw/Ubuntu+Server.ova))
 
 ## Баллы
-| Идентификатор                    | SQL | Riak |
-|----------------------------------|:---:|------|
-| Антон **vorkulsky** Федоров      |  +  |      |
-| Михаил **SkyterX** Самойленко    |  +  |      |
-| RomanGorgol                      |  +? |      |
-| Дмитрий VorobeY1326 Пестерев     |  +  |      |
+| Идентификатор                     | SQL | Riak |
+|-----------------------------------|:---:|------|
+| Антон **vorkulsky** Федоров       |  +  |      |
+| Михаил **SkyterX** Самойленко     |  +  |      |
+| RomanGorgol                       |  +? |      |
+| Дмитрий VorobeY1326 Пестерев      |  +  |      |
+| Евгений eugenyshchelkanov Щелканов|  +  |   +  |
