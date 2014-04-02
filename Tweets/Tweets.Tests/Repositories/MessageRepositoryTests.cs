@@ -1,10 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Configuration;
-using System.Data.Linq;
-using System.Data.Linq.Mapping;
-using System.Data.SqlClient;
 using System.Linq;
-using System.Reflection;
+using MongoDB.Driver;
+using MongoDB.Driver.Builders;
 using NUnit.Framework;
 using Ploeh.AutoFixture;
 using Tweets.ModelBuilding;
@@ -19,83 +18,46 @@ namespace Tweets.Tests.Repositories
         {
             base.SetUp();
 
-            var mappingSource = new AttributeMappingSource();
-            var connectionString = ConfigurationManager.ConnectionStrings["SqlConnectionString"].ConnectionString;
-            connection = new SqlConnection(connectionString);
-            connection.Open();
-            dataContext = new DataContext(connection, mappingSource);
-            TruncateTable<LikeDocument>();
-            TruncateTable<MessageDocument>();
+            messagesCollection = GetCleanCollection();
             var messageDocumentMapper = fixture.Create<MessageDocumentMapper>();
             fixture.Inject<IMapper<Message, MessageDocument>>(messageDocumentMapper);
             sut = fixture.Create<MessageRepository>();
         }
 
-        [TearDown]
-        public void TearDown()
-        {
-            dataContext.Dispose();
-            connection.Close();
-            connection.Dispose();
-        }
-
-        private void TruncateTable<T>()
-        {
-            var tableName = typeof (T).GetCustomAttribute<TableAttribute>().Name;
-            dataContext.ExecuteCommand(string.Format("if object_id('{0}') is not null delete from {0}", tableName));
-            dataContext.SubmitChanges();
-        }
-
-        private SqlConnection connection;
-        private DataContext dataContext;
         private MessageRepository sut;
+        private MongoCollection<MessageDocument> messagesCollection;
 
-        private void Insert<T>(T document) where T : class
+        private MongoCollection<MessageDocument> GetCleanCollection()
         {
-            dataContext.GetTable<T>().InsertOnSubmit(document);
-            dataContext.SubmitChanges();
+            var connectionString = ConfigurationManager.ConnectionStrings["MongoDb"].ConnectionString;
+            var databaseName = MongoUrl.Create(connectionString).DatabaseName;
+            var result =
+                new MongoClient(connectionString).GetServer().GetDatabase(databaseName).GetCollection<MessageDocument>(MessageDocument.CollectionName);
+            result.RemoveAll();
+            return result;
+        }
+
+        private class MessagesByCreateDateComparer : IComparer<UserMessage>
+        {
+            public int Compare(UserMessage x, UserMessage y)
+            {
+                return Comparer<DateTime>.Default.Compare(x.CreateDate, y.CreateDate);
+            }
         }
 
         [Test]
-        public void Save_NewMessage_InsertMessage()
+        public void Dislike_ExistingMessage_ShouldRemoveLike()
         {
-            var message = fixture.Create<Message>();
-            sut.Save(message);
-
-            var actual = dataContext.GetTable<MessageDocument>().ToArray();
-
-            Assert.That(actual, Has.Some.Matches<MessageDocument>(m => m.Id == message.Id));
-        }
-
-        [Test]
-        public void Like_NonExistingMessage_ShouldThrowError()
-        {
-            Assert.Throws<SqlException>(() => sut.Like(fixture.Create<Guid>(), fixture.Create<User>()));
-        }
-
-        [Test]
-        public void Like_ExistingMessage_ShouldAddLikeDocument()
-        {
-            var messageDocument = fixture.Create<MessageDocument>();
-            Insert(messageDocument);
             var user = fixture.Create<User>();
-            sut.Like(messageDocument.Id, user);
+            var existingLike = new LikeDocument {UserName = user.Name, CreateDate = DateTime.UtcNow};
+            var messageDocument = fixture.Build<MessageDocument>().With(d => d.Likes, new[] {existingLike}).Create();
+            messagesCollection.Save(messageDocument);
 
-            var actual = dataContext.GetTable<LikeDocument>().ToArray();
+            sut.Dislike(messageDocument.Id, user);
 
-            Assert.That(actual, Has.Some.Matches<LikeDocument>(d => d.MessageId == messageDocument.Id && d.UserName == user.Name));
-        }
+            var actual = messagesCollection.FindOneAs<MessageDocument>(Query<MessageDocument>.EQ(d => d.Id, messageDocument.Id));
 
-        [Test]
-        public void Like_LikedMessage_ShouldNotAddLikeDocument()
-        {
-            var messageDocument = fixture.Create<MessageDocument>();
-            Insert(messageDocument);
-            var user = fixture.Create<User>();
-            var existingLike = new LikeDocument {MessageId = messageDocument.Id, UserName = user.Name, CreateDate = DateTime.UtcNow};
-            Insert(existingLike);
-
-            Assert.Throws<SqlException>(() => sut.Like(messageDocument.Id, user));
+            Assert.That(actual.Likes, Is.Empty);
         }
 
         [Test]
@@ -105,172 +67,42 @@ namespace Tweets.Tests.Repositories
         }
 
         [Test]
-        public void Dislike_ExistingMessage_ShouldRemoveLikeDocument()
+        public void Dislike_AnotherUserLike_ShouldNotRemoveLike()
         {
-            var messageDocument = fixture.Create<MessageDocument>();
-            Insert(messageDocument);
             var user = fixture.Create<User>();
-            var existingLike = new LikeDocument {MessageId = messageDocument.Id, UserName = user.Name, CreateDate = DateTime.UtcNow};
-            Insert(existingLike);
-
-            sut.Dislike(messageDocument.Id, user);
-
-            var actual = dataContext.GetTable<LikeDocument>().ToArray();
-
-            Assert.That(actual, Has.No.Some.Matches<LikeDocument>(d => d.MessageId == messageDocument.Id && d.UserName == user.Name));
-        }
-
-        [Test]
-        public void Dislike_SameUserOtherMessage_ShouldNotRemoveLikeDocument()
-        {
-            var messageDocument = fixture.Create<MessageDocument>();
-            Insert(messageDocument);
-            var user = fixture.Create<User>();
-            var existingLike = new LikeDocument {MessageId = messageDocument.Id, UserName = user.Name, CreateDate = DateTime.UtcNow};
-            Insert(existingLike);
-
-            sut.Dislike(fixture.Create<Guid>(), user);
-
-            var actual = dataContext.GetTable<LikeDocument>().ToArray();
-
-            Assert.That(actual, Has.Some.Matches<LikeDocument>(d => d.MessageId == messageDocument.Id && d.UserName == user.Name));
-        }
-
-        [Test]
-        public void Dislike_SameMessageOtherUser_ShouldNotRemoveLikeDocument()
-        {
-            var messageDocument = fixture.Create<MessageDocument>();
-            Insert(messageDocument);
-            var user = fixture.Create<User>();
-            var existingLike = new LikeDocument {MessageId = messageDocument.Id, UserName = user.Name, CreateDate = DateTime.UtcNow};
-            Insert(existingLike);
+            var existingLike = new LikeDocument {UserName = user.Name, CreateDate = DateTime.UtcNow};
+            var messageDocument = fixture.Build<MessageDocument>().With(d => d.Likes, new[] {existingLike}).Create();
+            messagesCollection.Save(messageDocument);
 
             sut.Dislike(messageDocument.Id, fixture.Create<User>());
 
-            var actual = dataContext.GetTable<LikeDocument>().ToArray();
+            var actual = messagesCollection.FindOneAs<MessageDocument>(Query<MessageDocument>.EQ(d => d.Id, messageDocument.Id));
 
-            Assert.That(actual, Has.Some.Matches<LikeDocument>(d => d.MessageId == messageDocument.Id && d.UserName == user.Name));
+            Assert.That(actual.Likes, Has.Some.Matches<LikeDocument>(d => d.UserName == user.Name));
         }
 
         [Test]
-        public void GetPopularMessages_MessageWithoutLike_ShouldReturnZeroLikes()
-        {
-            var messageDocument = fixture.Create<MessageDocument>();
-            Insert(messageDocument);
-
-            var actual = sut.GetPopularMessages();
-
-            Assert.That(actual, Has.Some.Matches<Message>(m => m.Id == messageDocument.Id && m.Likes == 0));
-        }
-
-        [Test]
-        public void GetPopularMessages_MessageWithLikes_ShouldSumLikes()
-        {
-            var messageDocument = fixture.Create<MessageDocument>();
-            Insert(messageDocument);
-            Insert(fixture.Build<LikeDocument>().With(d => d.MessageId, messageDocument.Id).Create());
-            Insert(fixture.Build<LikeDocument>().With(d => d.MessageId, messageDocument.Id).Create());
-
-            var actual = sut.GetPopularMessages();
-
-            Assert.That(actual, Has.Some.Matches<Message>(m => m.Id == messageDocument.Id && m.Likes == 2));
-        }
-
-        [Test]
-        public void GetPopularMessages_MessagesWithLikes_ShouldOrderByLikes()
-        {
-            var messageDocument1 = fixture.Create<MessageDocument>();
-            Insert(messageDocument1);
-            var messageDocument2 = fixture.Create<MessageDocument>();
-            Insert(messageDocument2);
-            Insert(fixture.Build<LikeDocument>().With(d => d.MessageId, messageDocument2.Id).Create());
-
-            var actual = sut.GetPopularMessages();
-
-            Assert.That(actual, Is.Ordered.By("Likes").Descending);
-        }
-
-        [Test]
-        public void GetPopularMessages_Always_ShouldTakeTop10()
-        {
-            var messages = fixture.CreateMany<MessageDocument>(11);
-            dataContext.GetTable<MessageDocument>().InsertAllOnSubmit(messages);
-            dataContext.SubmitChanges();
-
-            var actual = sut.GetPopularMessages();
-
-            Assert.That(actual, Has.Length.EqualTo(10));
-        }
-
-        [Test]
-        public void GetMessages_UnknownUser_ShouldReturnEmpty()
-        {
-            Insert(fixture.Create<MessageDocument>());
-            var actual = sut.GetMessages(fixture.Create<User>());
-            Assert.That(actual, Is.Empty);
-        }
-
-        [Test]
-        public void GetMessages_KnownUser_ShouldReturnFilteredMessages()
+        public void Dislike_SameUserOtherMessage_ShouldNotRemoveLike()
         {
             var user = fixture.Create<User>();
-            var messageDocument = fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).Create();
-            Insert(messageDocument);
+            var like = new LikeDocument {UserName = user.Name, CreateDate = DateTime.UtcNow};
+            var messageDocument = fixture.Build<MessageDocument>().With(d => d.Likes, new[] {like}).Create();
+            messagesCollection.Save(messageDocument);
 
-            var actual = sut.GetMessages(user);
+            sut.Dislike(fixture.Create<Guid>(), user);
 
-            Assert.That(actual, Has.Some.Matches<Message>(m => m.Id == messageDocument.Id));
-        }
+            var actual = messagesCollection.FindOneAs<MessageDocument>(Query<MessageDocument>.EQ(d => d.Id, messageDocument.Id));
 
-        [Test]
-        public void GetMessages_MessageWithoutLike_ShouldReturnZeroLikes()
-        {
-            var user = fixture.Create<User>();
-            var messageDocument = fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).Create();
-            Insert(messageDocument);
-
-            var actual = sut.GetMessages(user);
-
-            Assert.That(actual, Has.Some.Matches<Message>(m => m.Id == messageDocument.Id && m.Likes == 0));
-        }
-
-        [Test]
-        public void GetMessages_MessageWithLikes_ShouldSumLikes()
-        {
-            var user = fixture.Create<User>();
-            var messageDocument = fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).Create();
-            Insert(messageDocument);
-            Insert(fixture.Build<LikeDocument>().With(d => d.MessageId, messageDocument.Id).Create());
-            Insert(fixture.Build<LikeDocument>().With(d => d.MessageId, messageDocument.Id).Create());
-
-            var actual = sut.GetMessages(user);
-
-            Assert.That(actual, Has.Some.Matches<Message>(m => m.Id == messageDocument.Id && m.Likes == 2));
-        }
-
-        [Test]
-        public void GetMessages_MessagesWithLikes_ShouldOrderByCreateDate()
-        {
-            var user = fixture.Create<User>();
-            var messageDocument1 = fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).With(d => d.CreateDate, DateTime.UtcNow).Create();
-            Insert(messageDocument1);
-            var messageDocument2 =
-                fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).With(d => d.CreateDate, DateTime.UtcNow.AddDays(1)).Create();
-            Insert(messageDocument2);
-
-            var actual = sut.GetMessages(user);
-
-            Assert.That(actual, Is.Ordered.By("CreateDate").Descending);
+            Assert.That(actual.Likes, Has.Some.Matches<LikeDocument>(d => d.UserName == user.Name));
         }
 
         [Test]
         public void GetMessages_CurrentUserLikedMessage_ShouldSetLikedToTrue()
         {
             var user = fixture.Create<User>();
-            var messageDocument = fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).Create();
-            Insert(messageDocument);
-            var likeDocument = fixture.Build<LikeDocument>().With(d => d.MessageId, messageDocument.Id).With(d => d.UserName, user.Name).Create();
-            Insert(likeDocument);
+            var like = fixture.Build<LikeDocument>().With(d => d.UserName, user.Name).Create();
+            var messageDocument = fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).With(d => d.Likes, new[] {like}).Create();
+            messagesCollection.Insert(messageDocument);
 
             var actual = sut.GetMessages(user);
 
@@ -278,17 +110,207 @@ namespace Tweets.Tests.Repositories
         }
 
         [Test]
+        public void GetMessages_KnownUser_ShouldReturnFilteredMessages()
+        {
+            var user = fixture.Create<User>();
+            var messageDocument = fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).Create();
+            messagesCollection.Insert(messageDocument);
+
+            var actual = sut.GetMessages(user);
+
+            Assert.That(actual, Has.Some.Matches<Message>(m => m.Id == messageDocument.Id));
+        }
+
+        [Test]
+        public void GetMessages_MessageWithLikes_ShouldSumLikes()
+        {
+            var user = fixture.Create<User>();
+            var messageDocument =
+                fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).With(d => d.Likes, fixture.CreateMany<LikeDocument>(2)).Create();
+            messagesCollection.Insert(messageDocument);
+
+            var actual = sut.GetMessages(user);
+
+            Assert.That(actual, Has.Some.Matches<Message>(m => m.Id == messageDocument.Id && m.Likes == 2));
+        }
+
+        [Test]
+        public void GetMessages_MessageWithoutLike_ShouldReturnZeroLikes()
+        {
+            var user = fixture.Create<User>();
+            var messageDocument = fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).Without(d => d.Likes).Create();
+            messagesCollection.Insert(messageDocument);
+
+            var actual = sut.GetMessages(user);
+
+            Assert.That(actual, Has.Some.Matches<Message>(m => m.Id == messageDocument.Id && m.Likes == 0));
+        }
+
+        [Test]
+        public void GetMessages_MessagesWithLikes_ShouldOrderByCreateDate()
+        {
+            var user = fixture.Create<User>();
+            var messageDocument1 = fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).With(d => d.CreateDate, DateTime.UtcNow).Create();
+            messagesCollection.Insert(messageDocument1);
+            var messageDocument2 =
+                fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).With(d => d.CreateDate, DateTime.UtcNow.AddDays(1)).Create();
+            messagesCollection.Insert(messageDocument2);
+
+            var actual = sut.GetMessages(user);
+
+            Assert.That(actual, Is.Ordered.Using(new MessagesByCreateDateComparer()).Descending);
+        }
+
+        [Test]
         public void GetMessages_OtherUserLikedMessage_ShouldSetLikedToFalse()
         {
             var user = fixture.Create<User>();
             var messageDocument = fixture.Build<MessageDocument>().With(d => d.UserName, user.Name).Create();
-            Insert(messageDocument);
-            var likeDocument = fixture.Build<LikeDocument>().With(d => d.MessageId, messageDocument.Id).Create();
-            Insert(likeDocument);
+            messagesCollection.Insert(messageDocument);
 
             var actual = sut.GetMessages(user);
 
             Assert.That(actual, Has.Some.Matches<UserMessage>(m => m.Id == messageDocument.Id && !m.Liked));
+        }
+
+        [Test]
+        public void GetMessages_UnknownUser_ShouldReturnEmpty()
+        {
+            messagesCollection.Insert(fixture.Create<MessageDocument>());
+            var actual = sut.GetMessages(fixture.Create<User>());
+            Assert.That(actual, Is.Empty);
+        }
+
+        [Test]
+        public void GetPopularMessages_Always_ShouldTakeTop10()
+        {
+            var messages = fixture.CreateMany<MessageDocument>(11);
+            messagesCollection.InsertBatch(messages);
+
+            var actual = sut.GetPopularMessages();
+
+            Assert.That(actual.ToArray(), Has.Length.EqualTo(10));
+        }
+
+        [Test]
+        public void GetPopularMessages_MessageWithLikes_ShouldSumLikes()
+        {
+            var messageDocument = fixture.Build<MessageDocument>().With(d => d.Likes, fixture.CreateMany<LikeDocument>(2)).Create();
+            messagesCollection.Insert(messageDocument);
+
+            var actual = sut.GetPopularMessages();
+
+            Assert.That(actual, Has.Some.Matches<Message>(m => m.Id == messageDocument.Id && m.Likes == 2));
+        }
+
+        [Test]
+        public void GetPopularMessages_MessageWithoutLike_ShouldReturnZeroLikes()
+        {
+            var messageDocument = fixture.Build<MessageDocument>().Without(d => d.Likes).Create();
+            messagesCollection.Insert(messageDocument);
+
+            var actual = sut.GetPopularMessages();
+
+            Assert.That(actual, Has.Some.Matches<Message>(m => m.Id == messageDocument.Id && m.Likes == 0));
+        }
+
+        [Test]
+        public void GetPopularMessages_MessagesWithLikes_ShouldOrderByLikes()
+        {
+            var messageDocument1 = fixture.Build<MessageDocument>().With(d => d.Likes, fixture.CreateMany<LikeDocument>(1)).Create();
+            messagesCollection.Insert(messageDocument1);
+            var messageDocument2 = fixture.Build<MessageDocument>().With(d => d.Likes, fixture.CreateMany<LikeDocument>(3)).Create();
+            messagesCollection.Insert(messageDocument2);
+
+            var actual = sut.GetPopularMessages();
+
+            Assert.That(actual, Is.Ordered.By("Likes").Descending);
+        }
+
+        [Test]
+        public void GetPopularMessages_Always_ShouldSortBeforeTop()
+        {
+            messagesCollection.InsertBatch(fixture.Build<MessageDocument>().With(d => d.Likes, fixture.CreateMany<LikeDocument>(1)).CreateMany(10));
+            var messageDocument = fixture.Build<MessageDocument>().With(d => d.Likes, fixture.CreateMany<LikeDocument>(10)).Create();
+            messagesCollection.Insert(messageDocument);
+
+            var actual = sut.GetPopularMessages();
+
+            Assert.That(actual.First().Id, Is.EqualTo(messageDocument.Id));
+        }
+
+        [Test]
+        public void Like_ExistingMessage_ShouldAddLikeDocument()
+        {
+            var messageDocument = fixture.Create<MessageDocument>();
+            messagesCollection.Insert(messageDocument);
+            var user = fixture.Create<User>();
+            sut.Like(messageDocument.Id, user);
+
+            var actual = messagesCollection.FindOneAs<MessageDocument>(Query<MessageDocument>.EQ(d => d.Id, messageDocument.Id));
+
+            Assert.That(actual.Likes, Has.Some.Matches<LikeDocument>(d => d.UserName == user.Name));
+        }
+
+        [Test]
+        public void Like_LikedMessage_ShouldNotAddLikeDocument()
+        {
+            var user = fixture.Create<User>();
+            var like = new LikeDocument {UserName = user.Name, CreateDate = DateTime.UtcNow};
+            var messageDocument = fixture.Build<MessageDocument>().With(d => d.Likes, new[] {like}).Create();
+            messagesCollection.Insert(messageDocument);
+
+            sut.Like(messageDocument.Id, user);
+
+            var actual = messagesCollection.FindOneAs<MessageDocument>(Query<MessageDocument>.EQ(d => d.Id, messageDocument.Id));
+            Assert.That(actual.Likes.ToArray(), Has.Length.EqualTo(1));
+        }
+
+        [Test]
+        public void Like_LikedMessage_ShouldNotRemoveOtherUserLikes()
+        {
+            var user = fixture.Create<User>();
+            var likes = fixture.CreateMany<LikeDocument>();
+            var messageDocument = fixture.Build<MessageDocument>().With(d => d.Likes, likes).Create();
+            messagesCollection.Insert(messageDocument);
+
+            sut.Like(messageDocument.Id, user);
+
+            var actual = messagesCollection.FindOneAs<MessageDocument>(Query<MessageDocument>.EQ(d => d.Id, messageDocument.Id));
+            Assert.That(actual.Likes.Count(), Is.EqualTo(likes.Count() + 1));
+        }
+
+        [Test]
+        public void Like_NonExistingMessage_ShouldNotAddMessageDocument()
+        {
+            sut.Like(fixture.Create<Guid>(), fixture.Create<User>());
+            var actual = messagesCollection.Count();
+            Assert.That(actual, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Like_UnknownMessageId_ShouldDoNothing()
+        {
+            var messageDocument = fixture.Create<MessageDocument>();
+            messagesCollection.Insert(messageDocument);
+
+            sut.Like(fixture.Create<Guid>(), fixture.Create<User>());
+
+            var actual = messagesCollection.FindAll();
+
+            Assert.That(actual.Count(), Is.EqualTo(1));
+            Assert.That(actual.Single().Likes.Count(), Is.EqualTo(messageDocument.Likes.Count()));
+        }
+
+        [Test]
+        public void Save_NewMessage_InsertMessage()
+        {
+            var message = fixture.Create<Message>();
+            sut.Save(message);
+
+            var actual = messagesCollection.FindAll();
+
+            Assert.That(actual, Has.Some.Matches<MessageDocument>(m => m.Id == message.Id));
         }
     }
 }

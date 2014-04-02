@@ -1,24 +1,29 @@
 ﻿using System;
-using System.Data.Linq.Mapping;
+using System.Collections.Generic;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
 
 namespace Tweets.Models
 {
-    [Table(Name = "messages")]
     public class MessageDocument
     {
-        [Column(Name = "id", DbType = "UniqueIdentifier", IsPrimaryKey = true, CanBeNull = false)]
+        public const string CollectionName = "messages";
+
+        [BsonId]
+        [BsonRepresentation(BsonType.String)]
         public Guid Id { get; set; }
 
-        [Column(Name = "userName", DbType = "varchar(100)")]
+        [BsonElement("userName")]
         public string UserName { get; set; }
 
-        [Column(Name = "text", DbType = "varchar(1000)")]
+        [BsonElement("text")]
         public string Text { get; set; }
 
-        [Column(Name = "createDate", DbType = "datetime")]
+        [BsonElement("createDate")]
+        [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
         public DateTime CreateDate { get; set; }
 
-        [Column(Name = "version", DbType = "RowVersion", CanBeNull = false, IsVersion = true, IsDbGenerated = true)]
-        public byte[] Version { get; protected set; }
+        [BsonElement("likes")]
+        public IEnumerable<LikeDocument> Likes { get; set; }
     }
 }
