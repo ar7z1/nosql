@@ -1,4 +1,6 @@
-﻿using CorrugatedIron;
+﻿using System;
+using System.Configuration;
+using ServiceStack.Redis;
 using StructureMap.Configuration.DSL;
 
 namespace Tweets
@@ -7,7 +9,11 @@ namespace Tweets
     {
         public TweetsRegistry()
         {
-            For<IRiakClient>().Singleton().Use(c => RiakCluster.FromConfig("riakConfig").CreateClient());
+            For<RedisClient>().Use(c =>
+                                   {
+                                       var connectionString = ConfigurationManager.ConnectionStrings["Redis"].ConnectionString;
+                                       return new RedisClient(new Uri(connectionString));
+                                   });
         }
     }
 }

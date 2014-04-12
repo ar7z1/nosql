@@ -1,10 +1,9 @@
-﻿using System.Reflection;
-using CorrugatedIron;
-using CorrugatedIron.Models;
+﻿using System;
+using System.Configuration;
 using NUnit.Framework;
 using Ploeh.AutoFixture;
 using Rhino.Mocks;
-using Tweets.Attributes;
+using ServiceStack.Redis;
 using Tweets.ModelBuilding;
 using Tweets.Models;
 using Tweets.Repositories;
@@ -16,8 +15,8 @@ namespace Tweets.Tests.Repositories
         public override void SetUp()
         {
             base.SetUp();
-            cluster = RiakCluster.FromConfig("riakConfig");
-            client = cluster.CreateClient();
+            var redisConnectionString = ConfigurationManager.ConnectionStrings["Redis"].ConnectionString;
+            client = new RedisClient(new Uri(redisConnectionString));
             fixture.Inject(client);
             userDocumentMapper = fixture.Freeze<IMapper<User, UserDocument>>();
             userMapper = fixture.Freeze<IMapper<UserDocument, User>>();
@@ -27,52 +26,26 @@ namespace Tweets.Tests.Repositories
         [TearDown]
         public void TearDown()
         {
-            cluster.Dispose();
+            client.Dispose();
         }
 
         private UserRepository sut;
-        private IRiakClient client;
-        private IRiakEndPoint cluster;
         private IMapper<User, UserDocument> userDocumentMapper;
         private IMapper<UserDocument, User> userMapper;
-
-        private string UsersBucketName
-        {
-            get
-            {
-                return typeof (UserDocument).GetCustomAttribute<BucketNameAttribute>().BucketName;
-            }
-        }
+        private RedisClient client;
 
         [Test]
-        public void Save_NewUser_ShouldInsert()
-        {
-            var user = fixture.Create<User>();
-            var userDocument = fixture.Create<UserDocument>();
-            userDocumentMapper.Stub(m => m.Map(user)).Return(userDocument);
-
-            sut.Save(user);
-
-            var actual = client.Get(UsersBucketName, userDocument.Id).Value.GetObject<UserDocument>();
-            Assert.That(actual.Id, Is.EqualTo(userDocument.Id));
-            Assert.That(actual.DisplayName, Is.EqualTo(userDocument.DisplayName));
-            Assert.That(actual.ImageUrl, Is.EqualTo(userDocument.ImageUrl));
-        }
-
-        [Test]
-        public void Save_ExistingUser_ShouldUpdate()
+        public void Get_ExistingUser_ShouldReturnResultFromMapper()
         {
             var userId = fixture.Create<string>();
             var existingUser = fixture.Build<UserDocument>().With(d => d.Id, userId).Create();
-            client.Put(new RiakObject(UsersBucketName, userId, existingUser));
-            var newUser = fixture.Build<UserDocument>().With(d => d.Id, userId).Create();
-            userDocumentMapper.Stub(m => m.Map(Arg<User>.Is.Anything)).Return(newUser);
+            client.Set(userId, existingUser);
+            var user = fixture.Create<User>();
+            userMapper.Stub(m => m.Map(Arg<UserDocument>.Matches(d => d.Id == userId))).Return(user);
 
-            sut.Save(fixture.Create<User>());
+            var actual = sut.Get(userId);
 
-            var actual = client.Get(UsersBucketName, userId).Value.GetObject<UserDocument>();
-            Assert.That(actual.DisplayName, Is.EqualTo(newUser.DisplayName));
-            Assert.That(actual.ImageUrl, Is.EqualTo(newUser.ImageUrl));
+            Assert.That(actual, Is.EqualTo(user));
         }
 
         [Test]
@@ -84,17 +57,34 @@ namespace Tweets.Tests.Repositories
         }
 
         [Test]
-        public void Get_ExistingUser_ShouldReturnResultFromMapper()
+        public void Save_ExistingUser_ShouldUpdate()
         {
             var userId = fixture.Create<string>();
             var existingUser = fixture.Build<UserDocument>().With(d => d.Id, userId).Create();
-            client.Put(new RiakObject(UsersBucketName, userId, existingUser));
+            client.Set(userId, existingUser);
+            var newUser = fixture.Build<UserDocument>().With(d => d.Id, userId).Create();
+            userDocumentMapper.Stub(m => m.Map(Arg<User>.Is.Anything)).Return(newUser);
+
+            sut.Save(fixture.Create<User>());
+
+            var actual = client.Get<UserDocument>(userId);
+            Assert.That(actual.DisplayName, Is.EqualTo(newUser.DisplayName));
+            Assert.That(actual.ImageUrl, Is.EqualTo(newUser.ImageUrl));
+        }
+
+        [Test]
+        public void Save_NewUser_ShouldInsert()
+        {
             var user = fixture.Create<User>();
-            userMapper.Stub(m => m.Map(Arg<UserDocument>.Matches(d => d.Id == userId))).Return(user);
+            var userDocument = fixture.Create<UserDocument>();
+            userDocumentMapper.Stub(m => m.Map(user)).Return(userDocument);
 
-            var actual = sut.Get(userId);
+            sut.Save(user);
 
-            Assert.That(actual, Is.EqualTo(user));
+            var actual = client.Get<UserDocument>(userDocument.Id);
+            Assert.That(actual.Id, Is.EqualTo(userDocument.Id));
+            Assert.That(actual.DisplayName, Is.EqualTo(userDocument.DisplayName));
+            Assert.That(actual.ImageUrl, Is.EqualTo(userDocument.ImageUrl));
         }
     }
 }
