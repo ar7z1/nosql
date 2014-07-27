@@ -12,7 +12,7 @@
  * [Фильтр Блума](http://ru.wikipedia.org/wiki/Фильтр_Блума)
 4. Column-oriented хранилища, Cassandra ([презентация](https://s3-eu-west-1.amazonaws.com/nosql-course/presentations/cassandra.pdf))
 5. Document-oriented базы данных, MongoDB ([презентация](https://s3-eu-west-1.amazonaws.com/nosql-course/presentations/MongoDB.pdf))
-6. Redis
+6. Redis ([презентация](https://s3-eu-west-1.amazonaws.com/nosql-course/presentations/redis.pdf))
  * [The Little Redis Book](http://openmymind.net/redis.pdf)
 7. ElasticSearch([презентация](https://s3-eu-west-1.amazonaws.com/nosql-course/presentations/ElasticSearch.pdf))
 8. Алгоритмы распределенного консенсуса([презентация](https://s3-eu-west-1.amazonaws.com/nosql-course/presentations/Consensus.pdf))
